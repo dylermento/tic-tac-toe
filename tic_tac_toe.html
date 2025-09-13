@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tic‑Tac‑Toe</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--win:#16a34a}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#041129 0%, #071430 60%);color:#e6eef6}
+    .app{width:min(680px,94vw);background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));padding:20px;border-radius:14px;box-shadow:0 8px 30px rgba(2,6,23,.6)}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+    h1{font-size:20px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    .btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:10px;color:var(--muted);cursor:pointer}
+    .btn.primary{background:linear-gradient(90deg,var(--accent),#7c3aed);border:none;color:#021124}
+    .mode{display:flex;gap:6px}
+    .board-wrap{display:flex;gap:18px;align-items:center}
+    .board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:rgba(255,255,255,0.02);padding:8px;border-radius:12px;width:320px;height:320px}
+    .cell{display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.01);font-size:56px;border-radius:10px;cursor:pointer;user-select:none}
+    .cell:hover{transform:translateY(-4px);box-shadow:0 6px 18px rgba(2,6,23,.45)}
+    .info{min-width:220px}
+    .score{display:flex;flex-direction:column;gap:12px}
+    .score div{display:flex;justify-content:space-between;padding:8px;background:rgba(255,255,255,0.02);border-radius:8px}
+    .small{font-size:13px;color:var(--muted)}
+    .line{position:absolute;pointer-events:none}
+    .winner{background:linear-gradient(90deg,var(--win),#34d399);color:#022114;padding:8px;border-radius:8px;font-weight:600}
+    footer{margin-top:12px;font-size:13px;color:var(--muted)}
+    @media (max-width:650px){.board{width:260px;height:260px}.cell{font-size:44px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>🎲 Tic‑Tac‑Toe</h1>
+      <div class="controls">
+        <div class="mode">
+          <button class="btn" id="twoPlayer">2‑Player</button>
+          <button class="btn primary" id="onePlayer">Vs CPU</button>
+        </div>
+        <button class="btn" id="reset">Reset</button>
+      </div>
+    </header>
+
+    <section class="board-wrap">
+      <div style="position:relative">
+        <div class="board" id="board"></div>
+      </div>
+
+      <aside class="info">
+        <div class="small">Turn</div>
+        <div id="turnLabel" style="margin:8px 0 18px;font-size:18px">X</div>
+
+        <div class="score">
+          <div><span>X:</span><strong id="scoreX">0</strong></div>
+          <div><span>O:</span><strong id="scoreO">0</strong></div>
+          <div><span>Draws:</span><strong id="scoreD">0</strong></div>
+        </div>
+
+        <div style="margin-top:16px">
+          <label class="small">Difficulty</label>
+          <select id="difficulty" class="btn" style="width:100%;margin-top:6px">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Unbeatable</option>
+          </select>
+        </div>
+
+      </aside>
+    </section>
+
+    <footer>Tip: Click a mode to switch. CPU plays O. Enjoy!</footer>
+  </main>
+
+  <script>
+    // Game state
+    const boardEl = document.getElementById('board');
+    const turnLabel = document.getElementById('turnLabel');
+    const scoreX = document.getElementById('scoreX');
+    const scoreO = document.getElementById('scoreO');
+    const scoreD = document.getElementById('scoreD');
+    const resetBtn = document.getElementById('reset');
+    const onePlayerBtn = document.getElementById('onePlayer');
+    const twoPlayerBtn = document.getElementById('twoPlayer');
+    const difficultySelect = document.getElementById('difficulty');
+
+    let board = Array(9).fill(null);
+    let turn = 'X';
+    let running = true;
+    let mode = 'one'; // 'one' or 'two'
+    const scores = {X:0,O:0,D:0};
+
+    const WIN_LINES = [
+      [0,1,2],[3,4,5],[6,7,8],
+      [0,3,6],[1,4,7],[2,5,8],
+      [0,4,8],[2,4,6]
+    ];
+
+    function render(){
+      boardEl.innerHTML = '';
+      board.forEach((v,i)=>{
+        const c = document.createElement('div');
+        c.className = 'cell';
+        c.dataset.i = i;
+        c.textContent = v || '';
+        c.addEventListener('click', onCellClick);
+        boardEl.appendChild(c);
+      })
+      turnLabel.textContent = running? turn : '—';
+    }
+
+    function onCellClick(e){
+      const i = Number(e.currentTarget.dataset.i);
+      if(!running || board[i]) return;
+      playMove(i, turn);
+      if(mode==='one' && running) setTimeout(cpuMove, 250);
+    }
+
+    function playMove(i, player){
+      if(board[i] || !running) return;
+      board[i] = player;
+      checkEnd();
+      if(running) turn = (player==='X')? 'O' : 'X';
+      render();
+    }
+
+    function checkEnd(){
+      for(const line of WIN_LINES){
+        const [a,b,c] = line;
+        if(board[a] && board[a]===board[b] && board[b]===board[c]){
+          // win
+          running = false;
+          highlight(line);
+          scores[board[a]]++;
+          updateScores();
+          turnLabel.innerHTML = `Winner: <span class="winner">${board[a]}</span>`;
+          return;
+        }
+      }
+      if(board.every(Boolean)){
+        running = false;
+        scores.D++;
+        updateScores();
+        turnLabel.textContent = 'Draw';
+      }
+    }
+
+    function highlight(line){
+      // add small highlight by scaling winning cells
+      line.forEach(i=>{
+        const el = boardEl.querySelector(`[data-i="${i}"]`);
+        if(el) el.style.transform = 'scale(1.06)';
+      })
+    }
+
+    function updateScores(){
+      scoreX.textContent = scores.X;
+      scoreO.textContent = scores.O;
+      scoreD.textContent = scores.D;
+    }
+
+    function resetBoard(clearScores=false){
+      board = Array(9).fill(null);
+      turn = 'X';
+      running = true;
+      if(clearScores) {scores.X=0;scores.O=0;scores.D=0;updateScores();}
+      // clear transforms
+      setTimeout(()=>{boardEl.querySelectorAll('.cell').forEach(c=>c.style.transform='')},50);
+      render();
+    }
+
+    resetBtn.addEventListener('click', ()=>resetBoard(true));
+    twoPlayerBtn.addEventListener('click', ()=>{mode='two'; twoPlayerBtn.classList.add('primary'); onePlayerBtn.classList.remove('primary'); resetBoard();});
+    onePlayerBtn.addEventListener('click', ()=>{mode='one'; onePlayerBtn.classList.add('primary'); twoPlayerBtn.classList.remove('primary'); resetBoard();});
+
+    // CPU move logic
+    function cpuMove(){
+      if(!running) return;
+      const diff = difficultySelect.value;
+      let i;
+      if(diff==='easy') i = cpuRandom();
+      else if(diff==='medium') i = cpuMedium();
+      else i = cpuUnbeatable();
+      if(typeof i === 'number') playMove(i,'O');
+    }
+
+    function cpuRandom(){
+      const empties = board.map((v,i)=>v?null:i).filter(Number.isInteger);
+      if(!empties.length) return null;
+      return empties[Math.floor(Math.random()*empties.length)];
+    }
+
+    function cpuMedium(){
+      // try win, else block, else random
+      // win
+      for(let i=0;i<9;i++) if(!board[i]){board[i]='O'; if(isWinning('O')){board[i]=null; return i} board[i]=null}
+      // block
+      for(let i=0;i<9;i++) if(!board[i]){board[i]='X'; if(isWinning('X')){board[i]=null; return i} board[i]=null}
+      return cpuRandom();
+    }
+
+    function isWinning(p){
+      return WIN_LINES.some(([a,b,c])=>board[a]===p && board[b]===p && board[c]===p);
+    }
+
+    // Minimax for unbeatable
+    function cpuUnbeatable(){
+      const best = minimax(board.slice(), 'O');
+      return best.index;
+    }
+
+    function minimax(newBoard, player){
+      const avail = newBoard.map((v,i)=>v?null:i).filter(Number.isInteger);
+      if(checkWinState(newBoard,'X')) return {score:-10};
+      if(checkWinState(newBoard,'O')) return {score:10};
+      if(avail.length===0) return {score:0};
+
+      const moves = [];
+      for(const i of avail){
+        const move = {};
+        move.index = i;
+        newBoard[i] = player;
+        const result = minimax(newBoard, player==='O'?'X':'O');
+        move.score = result.score;
+        newBoard[i] = null;
+        moves.push(move);
+      }
+
+      let bestMove;
+      if(player==='O'){
+        let bestScore = -Infinity;
+        for(const m of moves) if(m.score>bestScore){bestScore=m.score;bestMove=m}
+      } else {
+        let bestScore = Infinity;
+        for(const m of moves) if(m.score<bestScore){bestScore=m.score;bestMove=m}
+      }
+      return bestMove;
+    }
+
+    function checkWinState(bd, p){
+      return WIN_LINES.some(([a,b,c])=>bd[a]===p && bd[b]===p && bd[c]===p);
+    }
+
+    // init
+    render();
+  </script>
+</body>
+</html>
